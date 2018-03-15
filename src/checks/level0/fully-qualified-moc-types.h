@@ -33,5 +33,7 @@ class FullyQualifiedMocTypes : public CheckBase
 public:
     explicit FullyQualifiedMocTypes(const std::string &name, ClazyContext *context);
     void VisitDecl(clang::Decl *) override;
+private:
+    bool handleQ_PROPERTY(clang::CXXMethodDecl *);
 };
 #endif

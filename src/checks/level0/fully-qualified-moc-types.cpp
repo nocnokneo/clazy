@@ -45,11 +45,14 @@ void FullyQualifiedMocTypes::VisitDecl(clang::Decl *decl)
     if (!method)
         return;
 
-    if (method->isThisDeclarationADefinition() && !method->hasInlineBody())
-        return;
-
     AccessSpecifierManager *accessSpecifierManager = m_context->accessSpecifierManager;
     if (!accessSpecifierManager)
+        return;
+
+    if (handleQ_PROPERTY(method))
+        return;
+
+    if (method->isThisDeclarationADefinition() && !method->hasInlineBody())
         return;
 
     QtAccessSpecifierType qst = accessSpecifierManager->qtAccessSpecifierType(method);
@@ -70,4 +73,49 @@ void FullyQualifiedMocTypes::VisitDecl(clang::Decl *decl)
             }
         }
     }
+}
+
+bool FullyQualifiedMocTypes::handleQ_PROPERTY(CXXMethodDecl *method)
+{
+    if (clazy::name(method) != "qt_static_metacall" || !method->hasBody() || method->getDefinition() != method)
+        return false;
+    /**
+     * Basically diffed a .moc file with and without a namespaced property,
+     * the difference is one reinterpret_cast, under an if (_c == QMetaObject::ReadProperty), so
+     * that's what we cheak.
+     *
+     * The AST doesn't have the Q_PROPERTIES as they expand to nothing, so we have
+     * to do it this way.
+     */
+
+    auto ifs = clazy::getStatements<IfStmt>(method->getBody());
+
+    for (auto iff : ifs) {
+        auto bo = dyn_cast<BinaryOperator>(iff->getCond());
+        if (!bo)
+            continue;
+
+        auto enumRefs = clazy::getStatements<DeclRefExpr>(bo->getRHS());
+        if (enumRefs.size() == 1) {
+            EnumConstantDecl *enumerator = dyn_cast<EnumConstantDecl>(enumRefs.at(0)->getDecl());
+            if (enumerator && enumerator->getName() == "ReadProperty") {
+                auto reinterprets = clazy::getStatements<CXXReinterpretCastExpr>(iff);
+                for (auto reinterpret : reinterprets) {
+
+                    QualType qt = TypeUtils::pointeeQualType(reinterpret->getTypeAsWritten());
+
+                    string nameAsWritten = clazy::name(qt, lo(),  /*asWritten=*/true);
+                    string fullyQualifiedName = clazy::name(qt, lo(),  /*asWritten=*/false);
+                    if (nameAsWritten != fullyQualifiedName) {
+                        // warn in the cxxrecorddecl, since we don't want to warn in the .moc files.
+                        // Ideally we would do some cross checking with the Q_PROPERTIES, but that's not in the AST
+                        emitWarning(method->getParent()->getLocStart(), "Q_PROPERTY of type " + nameAsWritten + " should use full qualification (" + fullyQualifiedName + ")");
+                    }
+                }
+                return true;
+            }
+        }
+    }
+
+    return true; // true, so processing doesn't continue, it's a qt_static_metacall, nothing interesting here unless the properties above
 }

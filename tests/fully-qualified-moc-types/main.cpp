@@ -7,6 +7,8 @@ namespace NS {
     class MyObject : public QObject
     {
         Q_OBJECT
+        Q_PROPERTY(NS::MyType foo READ foo) // OK
+        Q_PROPERTY(MyType foo1 READ foo) // Warn
     Q_SIGNALS:
         void mysig(NS::MyType);
         void mysig2(MyType); // Warn
@@ -34,6 +36,7 @@ namespace NS {
         Q_INVOKABLE void myinvokable6(const A);
         Q_INVOKABLE void myinvokable7(const A *);
         Q_INVOKABLE void myinvokable8(A *);
+        NS::MyType foo();
     };
 }
 
