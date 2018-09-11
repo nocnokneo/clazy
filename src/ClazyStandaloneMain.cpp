@@ -22,6 +22,7 @@
 // clazy:excludeall=non-pod-global-static
 
 #include "Clazy.h"
+#include "StringUtils.h"
 
 #include <clang/Frontend/FrontendActions.h>
 #include <clang/Tooling/CommonOptionsParser.h>
@@ -29,6 +30,7 @@
 #include <llvm/Support/CommandLine.h>
 
 #include <memory>
+#include <regex>
 
 using namespace clang;
 using namespace clang::tooling;
@@ -108,7 +110,28 @@ public:
 int main(int argc, const char **argv)
 {
     CommonOptionsParser optionsParser(argc, argv, s_clazyCategory);
-    ClangTool tool(optionsParser.getCompilations(), optionsParser.getSourcePathList());
+
+    // Default to running on all files in the compilation database if no source
+    // files were specified
+    auto commandLineSourcePaths = optionsParser.getSourcePathList();
+    if (commandLineSourcePaths.empty())
+    {
+        commandLineSourcePaths.push_back(".*");
+    }
+
+    // Build up a big regexy filter from all command line arguments.
+    auto sourcePathRegex = std::regex(clazy::joinStrings(commandLineSourcePaths, "|"));
+
+    std::vector<std::string> sourcePathsToProcess;
+    for (const auto &f : optionsParser.getCompilations().getAllFiles())
+    {
+        if (std::regex_search(f, sourcePathRegex))
+        {
+            sourcePathsToProcess.push_back(f);
+        }
+    }
+
+    ClangTool tool(optionsParser.getCompilations(), sourcePathsToProcess);
 
     return tool.run(new ClazyToolActionFactory());
 }

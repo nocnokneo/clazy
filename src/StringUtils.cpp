@@ -23,6 +23,7 @@
 */
 
 #include "StringUtils.h"
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -60,4 +61,27 @@ bool clazy::anyArgIsOfAnySimpleType(clang::FunctionDecl *func,
     return clazy::any_of(simpleTypes, [func,lo](const string &simpleType) {
         return clazy::anyArgIsOfSimpleType(func, simpleType, lo);
     });
+}
+
+string clazy::joinStrings(const std::vector<string> &strings, const string &separator)
+{
+    std::ostringstream ss;
+
+    auto it = strings.cbegin();
+    auto end = strings.cend();
+
+    if (it != end)
+    {
+        ss << *it;
+        ++it;
+    }
+
+    while(it != end)
+    {
+        ss << separator;
+        ss << *it;
+        ++it;
+    }
+
+    return ss.str();
 }

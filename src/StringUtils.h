@@ -308,6 +308,8 @@ inline void dump(const clang::SourceManager &sm, clang::Stmt *s)
         dump(sm, child);
 }
 
+CLAZYLIB_EXPORT std::string joinStrings(const std::vector<std::string> &strings, const std::string &separator = " ");
+
 }
 
 #endif
